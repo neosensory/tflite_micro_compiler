@@ -130,6 +130,29 @@ void tflmc::CodeWriter::writeBuiltin(tflite::BuiltinOperator op,
           (TfLiteConcatenationParams const*)data;
       out_ << p->axis << ", " << to_string(p->activation) << " };";
     } break;
+    case tflite::BuiltinOperator_PACK: {
+      out_ << "TfLitePackParams " << name << " = { ";
+      TfLitePackParams const* p = (TfLitePackParams const*)data;
+      out_ << p->values_count << ", " << p->axis << " };";
+    } break;
+    case tflite::BuiltinOperator_UNPACK: {
+      out_ << "TfLiteUnpackParams " << name << " = { ";
+      TfLiteUnpackParams const* p = (TfLiteUnpackParams const*)data;
+      out_ << p->num << ", " << p->axis << " };";
+    } break;
+
+    case tflite::BuiltinOperator_SPLIT: {
+      out_ << "TfLiteSplitParams " << name << " = { ";
+      TfLiteSplitParams const* p = (TfLiteSplitParams const*)data;
+      out_ << p->num_splits << " };";
+    } break;
+
+    case tflite::BuiltinOperator_SPLIT_V: {
+      out_ << "TfLiteSplitVParams " << name << " = { ";
+      TfLiteSplitVParams const* p = (TfLiteSplitVParams const*)data;
+      out_ << p->num_splits << " };";
+    } break;
+
     default: {
       size_t datalen = GetBuiltinDataSize(op, subgraph_);
       uint32_t alignment = datalen >= 4 ? 4 : datalen >= 2 ? 2 : 1;
@@ -144,18 +167,16 @@ void tflmc::CodeWriter::writeBuiltin(tflite::BuiltinOperator op,
   out_ << '\n';
 }
 
-template<class TFArray>
-void writeTfArray( std::ostream &os, const TFArray *tfarray, const std::string &name, const char * suffix, const char *data_type_id)
-{
-    os << "const TfArray<" 
-          << tfarray->size << ", " 
-          << data_type_id << "> " 
-       << name << suffix
-       << " = { " << tfarray->size << ", { ";
-    for (int i = 0; i < tfarray->size; i++) {
-      os << tfarray->data[i] << ", ";
-    }
-    os << "} };\n";
+template <class TFArray>
+void writeTfArray(std::ostream& os, const TFArray* tfarray,
+                  const std::string& name, const char* suffix,
+                  const char* data_type_id) {
+  os << "const TfArray<" << tfarray->size << ", " << data_type_id << "> "
+     << name << suffix << " = { " << tfarray->size << ", { ";
+  for (int i = 0; i < tfarray->size; i++) {
+    os << tfarray->data[i] << ", ";
+  }
+  os << "} };\n";
 }
 
 void tflmc::CodeWriter::writeIntArray(const TfLiteIntArray& arr,
@@ -235,8 +256,7 @@ static void dump_tensor_contents(std::ostream& out_, const TfLiteTensor& t,
     int outer_dim = t.dims->data[0];
     int middle_dim = t.dims->data[t.dims->size - 2];
     int inner_dim = t.dims->data[t.dims->size - 1];
-    for (int i = 1; i < t.dims->size - 2; ++i)
-      outer_dim *= t.dims->data[i];
+    for (int i = 1; i < t.dims->size - 2; ++i) outer_dim *= t.dims->data[i];
     for (int i = 0; i < outer_dim; ++i) {
       // out_ << "\n  ";
       // uint32_t outer_index = inner_dim * middle_dim;
@@ -291,15 +311,12 @@ void tflmc::CodeWriter::writeTensor(const TfLiteTensor& t,
   }
 }
 
-
-
 void tflmc::CodeWriter::writeQuantization(const TfLiteQuantization& q,
                                           const std::string& name) {
-
   if (q.type == kTfLiteAffineQuantization) {
     auto aq = (TfLiteAffineQuantization const*)q.params;
     writeTfArray(out_, aq->scale, name, "_scale", "float");
-    writeTfArray(out_,  aq->zero_point, name, "_zero", "int");
+    writeTfArray(out_, aq->zero_point, name, "_zero", "int");
     out_ << "const TfLiteAffineQuantization " << name << " = { "
          << "(TfLiteFloatArray*)&" << name << "_scale, "
          << "(TfLiteIntArray*)&" << name << "_zero, " << aq->quantized_dimension
